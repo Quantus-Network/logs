@@ -1,0 +1,108 @@
+networks:
+  graylog:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
+  opensearch_data:
+    driver: local
+  graylog_data:
+    driver: local
+
+services:
+  # MongoDB - Graylog metadata and configuration
+  mongodb:
+    image: mongo:6.0
+    container_name: graylog_mongodb
+    restart: unless-stopped
+    networks:
+      - graylog
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD}
+    # No exposed ports - accessible only within the graylog network
+
+  # OpenSearch - log storage
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: graylog_opensearch
+    restart: unless-stopped
+    networks:
+      - graylog
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    environment:
+      - cluster.name=graylog
+      - node.name=opensearch-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms${OPENSEARCH_HEAP_SIZE} -Xmx${OPENSEARCH_HEAP_SIZE}"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
+      - plugins.security.disabled=true
+      - action.auto_create_index=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    # No exposed ports - accessible only within the graylog network
+
+  # Graylog Server
+  graylog:
+    image: graylog/graylog:5.2
+    container_name: graylog_server
+    restart: unless-stopped
+    networks:
+      - graylog
+    depends_on:
+      - mongodb
+      - opensearch
+    ports:
+      # Web interface and REST API
+      - "${GRAYLOG_HTTP_PORT}:9000"
+      # Syslog TCP
+      - "${GRAYLOG_SYSLOG_TCP_PORT}:1514/tcp"
+      # Syslog UDP
+      - "${GRAYLOG_SYSLOG_UDP_PORT}:1514/udp"
+      # GELF TCP
+      - "${GRAYLOG_GELF_TCP_PORT}:12201/tcp"
+      # GELF UDP
+      - "${GRAYLOG_GELF_UDP_PORT}:12201/udp"
+    volumes:
+      - graylog_data:/usr/share/graylog/data
+    environment:
+      # Basic configuration
+      - GRAYLOG_NODE_ID_FILE=/usr/share/graylog/data/config/node-id
+      - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:9000
+      - GRAYLOG_HTTP_EXTERNAL_URI=${GRAYLOG_HTTP_EXTERNAL_URI}
+      
+      # MongoDB connection
+      - GRAYLOG_MONGODB_URI=mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@mongodb:27017/graylog?authSource=admin
+      
+      # OpenSearch connection
+      - GRAYLOG_ELASTICSEARCH_HOSTS=http://opensearch:9200
+      
+      # Passwords and security
+      - GRAYLOG_PASSWORD_SECRET=${GRAYLOG_PASSWORD_SECRET}
+      - GRAYLOG_ROOT_PASSWORD_SHA2=${GRAYLOG_ROOT_PASSWORD_SHA2}
+      - GRAYLOG_ROOT_USERNAME=${GRAYLOG_ROOT_USERNAME}
+      
+      # Timezone
+      - GRAYLOG_ROOT_TIMEZONE=${GRAYLOG_TIMEZONE}
+      
+      # Email configuration (optional)
+      - GRAYLOG_TRANSPORT_EMAIL_ENABLED=${GRAYLOG_EMAIL_ENABLED}
+      - GRAYLOG_TRANSPORT_EMAIL_HOSTNAME=${GRAYLOG_EMAIL_HOSTNAME}
+      - GRAYLOG_TRANSPORT_EMAIL_PORT=${GRAYLOG_EMAIL_PORT}
+      - GRAYLOG_TRANSPORT_EMAIL_USE_AUTH=${GRAYLOG_EMAIL_USE_AUTH}
+      - GRAYLOG_TRANSPORT_EMAIL_AUTH_USERNAME=${GRAYLOG_EMAIL_USERNAME}
+      - GRAYLOG_TRANSPORT_EMAIL_AUTH_PASSWORD=${GRAYLOG_EMAIL_PASSWORD}
+      - GRAYLOG_TRANSPORT_EMAIL_USE_TLS=${GRAYLOG_EMAIL_USE_TLS}
+      - GRAYLOG_TRANSPORT_EMAIL_USE_SSL=${GRAYLOG_EMAIL_USE_SSL}
+      - GRAYLOG_TRANSPORT_EMAIL_FROM_EMAIL=${GRAYLOG_EMAIL_FROM}
+

@@ -1,0 +1,43 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose.override.yml
+
+# Docker volumes
+mongodb_data/
+opensearch_data/
+graylog_data/
+
+# Backups
+backups/
+backup/
+*.backup
+*.dump
+*.archive
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.project
+.settings/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
