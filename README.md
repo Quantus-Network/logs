@@ -2,13 +2,15 @@
 
 Production-ready Infrastructure as Code setup for Graylog with MongoDB and OpenSearch.
 
+**Built specifically for Quantus Network validator nodes.**
+
 ## 🎯 Purpose
 
-Centralized log management system for:
-- **Substrate/Blockchain nodes** - aggregate logs from multiple nodes
-- **Microservices** - centralize logs from distributed applications
-- **Production systems** - monitor, debug, and analyze logs in real-time
-- **Development** - test log aggregation before production deployment
+Centralized log management system for **Quantus Network**:
+- **Validator nodes** - aggregate logs from multiple validators across servers
+- **Production monitoring** - real-time monitoring and debugging
+- **Performance analysis** - track block production, finalization, and network health
+- **Alert system** - get notified about critical errors and consensus issues
 
 ## 🏗️ Architecture
 
@@ -31,12 +33,12 @@ Complete guide for setting up and managing the Graylog stack:
 - Troubleshooting
 
 ### **[CLIENT_SETUP.md](CLIENT_SETUP.md)**
-Guide for configuring applications to send logs to Graylog:
-- Substrate/Blockchain nodes (Docker GELF)
-- Docker containers
-- Web servers (Nginx, Apache)
-- Applications (Python, Node.js, Java, Go)
-- Kubernetes, Syslog, custom apps
+Guide for configuring Quantus Network nodes to send logs to Graylog:
+- Basic setup (just add logging to docker-compose)
+- Advanced configuration (labels, compression, non-blocking)
+- Multiple nodes setup
+- Useful Graylog searches for Substrate
+- Troubleshooting guide
 
 
 ## 🚀 Quick Start
