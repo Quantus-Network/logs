@@ -1,0 +1,50 @@
+{
+  "inputs": [
+    {
+      "title": "GELF UDP",
+      "type": "org.graylog2.inputs.gelf.udp.GELFUDPInput",
+      "global": true,
+      "configuration": {
+        "bind_address": "0.0.0.0",
+        "port": 12201,
+        "recv_buffer_size": 262144,
+        "decompress_size_limit": 8388608
+      }
+    },
+    {
+      "title": "GELF TCP",
+      "type": "org.graylog2.inputs.gelf.tcp.GELFTCPInput",
+      "global": true,
+      "configuration": {
+        "bind_address": "0.0.0.0",
+        "port": 12201,
+        "recv_buffer_size": 1048576,
+        "tls_enable": false
+      }
+    },
+    {
+      "title": "Syslog UDP",
+      "type": "org.graylog2.inputs.syslog.udp.SyslogUDPInput",
+      "global": true,
+      "configuration": {
+        "bind_address": "0.0.0.0",
+        "port": 1514,
+        "recv_buffer_size": 262144,
+        "store_full_message": true
+      }
+    },
+    {
+      "title": "Syslog TCP",
+      "type": "org.graylog2.inputs.syslog.tcp.SyslogTCPInput",
+      "global": true,
+      "configuration": {
+        "bind_address": "0.0.0.0",
+        "port": 1514,
+        "recv_buffer_size": 1048576,
+        "tls_enable": false,
+        "store_full_message": true
+      }
+    }
+  ]
+}
+

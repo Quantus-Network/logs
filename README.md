@@ -24,11 +24,11 @@ Three-component stack running in isolated Docker network:
 
 ### **[GRAYLOG_SETUP.md](GRAYLOG_SETUP.md)**
 Complete guide for setting up and managing the Graylog stack:
-- Installation (quick & manual)
-- Configuration & management
+- Installation steps
+- Input configuration
+- Docker Compose commands
 - Backup & restore
-- Monitoring & troubleshooting
-- Production deployment
+- Troubleshooting
 
 ### **[CLIENT_SETUP.md](CLIENT_SETUP.md)**
 Guide for configuring applications to send logs to Graylog:
@@ -42,13 +42,15 @@ Guide for configuring applications to send logs to Graylog:
 ## 🚀 Quick Start
 
 ```bash
-./setup.sh              # Generate .env with passwords
-docker compose up -d    # Start the stack
+git clone <repository-url>
+cd logs
+cp env.template .env    # Edit and set passwords
+docker compose up -d    # Auto-imports inputs!
 ```
 
-Access: **http://localhost:9000** (login: `admin` / `admin`)
+Access: **http://localhost:9000** (login: `admin`)
 
-See [GRAYLOG_SETUP.md](GRAYLOG_SETUP.md) for detailed instructions.
+Inputs (GELF, Syslog) are configured automatically. See [GRAYLOG_SETUP.md](GRAYLOG_SETUP.md) for details.
 
 ## 📊 Ports
 

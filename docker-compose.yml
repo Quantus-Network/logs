@@ -159,3 +159,39 @@ services:
       - GRAYLOG_TRANSPORT_EMAIL_USE_TLS=${GRAYLOG_EMAIL_USE_TLS}
       - GRAYLOG_TRANSPORT_EMAIL_USE_SSL=${GRAYLOG_EMAIL_USE_SSL}
       - GRAYLOG_TRANSPORT_EMAIL_FROM_EMAIL=${GRAYLOG_EMAIL_FROM}
+
+  # Graylog Init - Auto-import inputs on startup
+  graylog-init:
+    image: alpine:latest
+    container_name: graylog_init
+    restart: "no"
+    networks:
+      - graylog
+    depends_on:
+      graylog:
+        condition: service_healthy
+    volumes:
+      - ./graylog-inputs.json:/inputs.json:ro
+    environment:
+      - GRAYLOG_API=http://graylog:9000/api
+      - GRAYLOG_USER=${GRAYLOG_ROOT_USERNAME}
+      - GRAYLOG_PASSWORD=${GRAYLOG_ROOT_PASSWORD}
+    command: >
+      sh -c "
+        apk add --no-cache curl jq &&
+        echo 'Waiting for Graylog API...' &&
+        until curl -s -u $$GRAYLOG_USER:$$GRAYLOG_PASSWORD $$GRAYLOG_API/system/lbstatus > /dev/null 2>&1; do
+          sleep 5
+        done &&
+        echo 'Graylog API is ready. Importing inputs...' &&
+        jq -c '.inputs[]' /inputs.json | while read input; do
+          TITLE=$$(echo \"$$input\" | jq -r '.title')
+          echo \"Creating input: $$TITLE\"
+          curl -X POST \"$$GRAYLOG_API/system/inputs\" \
+            -H 'Content-Type: application/json' \
+            -H 'X-Requested-By: cli' \
+            -u \"$$GRAYLOG_USER:$$GRAYLOG_PASSWORD\" \
+            -d \"$$input\" || echo \"Warning: Failed to create $$TITLE (may already exist)\"
+        done &&
+        echo '✓ All inputs imported!'
+      "
