@@ -13,7 +13,7 @@ volumes:
 services:
   # MongoDB - Graylog metadata and configuration
   mongodb:
-    image: mongo:6.0
+    image: mongo:7.0
     container_name: graylog_mongodb
     restart: always
     networks:
@@ -41,7 +41,7 @@ services:
 
   # OpenSearch - log storage
   opensearch:
-    image: opensearchproject/opensearch:2.11.0
+    image: opensearchproject/opensearch:2.18.0
     container_name: graylog_opensearch
     restart: always
     networks:
@@ -82,7 +82,7 @@ services:
 
   # Graylog Server
   graylog:
-    image: graylog/graylog:5.2
+    image: graylog/graylog:7.0
     container_name: graylog_server
     restart: always
     networks:
@@ -181,18 +181,47 @@ services:
       - -c
       - |
         apk add --no-cache curl jq
-        echo 'Waiting for Graylog API...'
-        until curl -s -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" "$$GRAYLOG_API/system/lbstatus" > /dev/null 2>&1; do
+        echo 'Waiting for Graylog API to be fully ready...'
+        
+        # Wait for API to respond (with timeout)
+        COUNTER=0
+        MAX_TRIES=60
+        until curl -s -f -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" "$$GRAYLOG_API/system/lbstatus" > /dev/null 2>&1; do
+          COUNTER=$$((COUNTER + 1))
+          if [ $$COUNTER -gt $$MAX_TRIES ]; then
+            echo "ERROR: Graylog API did not become ready in time"
+            exit 1
+          fi
+          echo "Waiting for API... attempt $$COUNTER/$$MAX_TRIES"
           sleep 5
         done
-        echo 'Graylog API is ready. Importing inputs...'
+        
+        # Extra wait to ensure Graylog is fully initialized
+        echo 'API responding, waiting extra 30 seconds for full initialization...'
+        sleep 30
+        
+        echo 'Importing inputs...'
         jq -c '.inputs[]' /inputs.json | while read -r input; do
           TITLE=$$(echo "$$input" | jq -r '.title')
           echo "Creating input: $$TITLE"
-          curl -X POST "$$GRAYLOG_API/system/inputs" \
+          
+          RESPONSE=$$(curl -s -w "\n%{http_code}" -X POST "$$GRAYLOG_API/system/inputs" \
             -H "Content-Type: application/json" \
             -H "X-Requested-By: cli" \
             -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" \
-            -d "$$input" || echo "Warning: Failed to create $$TITLE (may already exist)"
+            -d "$$input")
+          
+          HTTP_CODE=$$(echo "$$RESPONSE" | tail -n1)
+          BODY=$$(echo "$$RESPONSE" | head -n-1)
+          
+          if [ "$$HTTP_CODE" = "201" ]; then
+            echo "✓ Successfully created: $$TITLE"
+          elif [ "$$HTTP_CODE" = "400" ] && echo "$$BODY" | grep -q "already exists"; then
+            echo "ℹ Input already exists: $$TITLE"
+          else
+            echo "✗ Failed to create $$TITLE (HTTP $$HTTP_CODE)"
+            echo "Response: $$BODY"
+          fi
         done
-        echo '✓ All inputs imported!'
+        
+        echo '✓ Input import completed!'
