@@ -93,14 +93,10 @@ services:
     ports:
       # Web interface and REST API
       - "${GRAYLOG_HTTP_PORT}:9000"
-      # Syslog TCP
-      - "${GRAYLOG_SYSLOG_TCP_PORT}:1514/tcp"
-      # Syslog UDP
-      - "${GRAYLOG_SYSLOG_UDP_PORT}:1514/udp"
-      # GELF TCP
-      - "${GRAYLOG_GELF_TCP_PORT}:12201/tcp"
-      # GELF UDP
+      # GELF UDP (for Quantus nodes)
       - "${GRAYLOG_GELF_UDP_PORT}:12201/udp"
+      # Prometheus metrics
+      - "9833:9833"
     volumes:
       - graylog_data:/usr/share/graylog/data
     deploy:
@@ -148,6 +144,10 @@ services:
       - GRAYLOG_OUTPUT_BATCH_SIZE=500
       - GRAYLOG_RING_SIZE=65536
       - GRAYLOG_ASYNC_EVENTBUS_PROCESSORS=2
+      
+      # Prometheus metrics
+      - GRAYLOG_PROMETHEUS_EXPORTER_ENABLED=true
+      - GRAYLOG_PROMETHEUS_EXPORTER_BIND_ADDRESS=0.0.0.0:9833
       
       # Email configuration (optional)
       - GRAYLOG_TRANSPORT_EMAIL_ENABLED=${GRAYLOG_EMAIL_ENABLED}
