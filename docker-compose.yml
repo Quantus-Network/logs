@@ -112,7 +112,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 180s
     environment:
       # Basic configuration
       - GRAYLOG_NODE_ID_FILE=/usr/share/graylog/data/config/node-id
@@ -176,22 +176,23 @@ services:
       - GRAYLOG_API=http://graylog:9000/api
       - GRAYLOG_USER=${GRAYLOG_ROOT_USERNAME}
       - GRAYLOG_PASSWORD=${GRAYLOG_ROOT_PASSWORD}
-    command: >
-      sh -c "
-        apk add --no-cache curl jq &&
-        echo 'Waiting for Graylog API...' &&
-        until curl -s -u $$GRAYLOG_USER:$$GRAYLOG_PASSWORD $$GRAYLOG_API/system/lbstatus > /dev/null 2>&1; do
+    command:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache curl jq
+        echo 'Waiting for Graylog API...'
+        until curl -s -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" "$$GRAYLOG_API/system/lbstatus" > /dev/null 2>&1; do
           sleep 5
-        done &&
-        echo 'Graylog API is ready. Importing inputs...' &&
-        jq -c '.inputs[]' /inputs.json | while read input; do
-          TITLE=$$(echo \"$$input\" | jq -r '.title')
-          echo \"Creating input: $$TITLE\"
-          curl -X POST \"$$GRAYLOG_API/system/inputs\" \
-            -H 'Content-Type: application/json' \
-            -H 'X-Requested-By: cli' \
-            -u \"$$GRAYLOG_USER:$$GRAYLOG_PASSWORD\" \
-            -d \"$$input\" || echo \"Warning: Failed to create $$TITLE (may already exist)\"
-        done &&
+        done
+        echo 'Graylog API is ready. Importing inputs...'
+        jq -c '.inputs[]' /inputs.json | while read -r input; do
+          TITLE=$$(echo "$$input" | jq -r '.title')
+          echo "Creating input: $$TITLE"
+          curl -X POST "$$GRAYLOG_API/system/inputs" \
+            -H "Content-Type: application/json" \
+            -H "X-Requested-By: cli" \
+            -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" \
+            -d "$$input" || echo "Warning: Failed to create $$TITLE (may already exist)"
+        done
         echo '✓ All inputs imported!'
-      "
