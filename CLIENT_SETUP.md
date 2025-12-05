@@ -42,7 +42,7 @@ services:
       options:
         gelf-address: "udp://localhost:12201"
         tag: "quantus-${NODE_NAME:-a1_dirac}"
-        labels: "node_type,chain,region,environment,server"
+        labels: "node_type,chain,environment"
         gelf-compression-type: "gzip"
         mode: "non-blocking"
         max-buffer-size: "4m"
@@ -51,9 +51,7 @@ services:
     labels:
       node_type: "validator"
       chain: "dirac"
-      region: "europe"
-      environment: "production"
-      server: "server-01"
+      environment: "testnet"
     
     environment:
       - NODE_NAME=a1_dirac

@@ -172,6 +172,7 @@ services:
         condition: service_healthy
     volumes:
       - ./graylog-inputs.json:/inputs.json:ro
+      - ./graylog-streams.json:/streams.json:ro
     environment:
       - GRAYLOG_API=http://graylog:9000/api
       - GRAYLOG_USER=${GRAYLOG_ROOT_USERNAME}
@@ -225,3 +226,66 @@ services:
         done
         
         echo '✓ Input import completed!'
+        
+        # Import Streams
+        echo ''
+        echo 'Importing streams...'
+        
+        # Get default index set ID
+        INDEX_SET_RESPONSE=$$(curl -s "$$GRAYLOG_API/system/indices/index_sets" \
+          -H "X-Requested-By: cli" \
+          -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD")
+        DEFAULT_INDEX_SET=$$(echo "$$INDEX_SET_RESPONSE" | jq -r '.index_sets[] | select(.default == true) | .id')
+        
+        echo "Using default index set: $$DEFAULT_INDEX_SET"
+        
+        jq -c '.streams[]' /streams.json | while read -r stream; do
+          STREAM_TITLE=$$(echo "$$stream" | jq -r '.title')
+          echo "Creating stream: $$STREAM_TITLE"
+          
+          # Extract rules separately and set index_set_id
+          RULES=$$(echo "$$stream" | jq -c '.rules')
+          STREAM_DATA=$$(echo "$$stream" | jq --arg idx "$$DEFAULT_INDEX_SET" 'del(.rules) | .index_set_id = $$idx')
+          
+          # Create stream
+          CREATE_RESPONSE=$$(curl -s -w "\n%{http_code}" -X POST "$$GRAYLOG_API/streams" \
+            -H "Content-Type: application/json" \
+            -H "X-Requested-By: cli" \
+            -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" \
+            -d "$$STREAM_DATA")
+          
+          CREATE_CODE=$$(echo "$$CREATE_RESPONSE" | tail -n1)
+          CREATE_BODY=$$(echo "$$CREATE_RESPONSE" | head -n-1)
+          
+          if [ "$$CREATE_CODE" = "201" ]; then
+            STREAM_ID=$$(echo "$$CREATE_BODY" | jq -r '.stream_id')
+            echo "✓ Stream created: $$STREAM_TITLE (ID: $$STREAM_ID)"
+            
+            # Add stream rules
+            echo "$$RULES" | jq -c '.[]' | while read -r rule; do
+              curl -s -X POST "$$GRAYLOG_API/streams/$$STREAM_ID/rules" \
+                -H "Content-Type: application/json" \
+                -H "X-Requested-By: cli" \
+                -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" \
+                -d "$$rule" > /dev/null
+            done
+            
+            # Resume stream
+            curl -s -X POST "$$GRAYLOG_API/streams/$$STREAM_ID/resume" \
+              -H "X-Requested-By: cli" \
+              -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" > /dev/null
+            echo "  → Stream rules added and stream started"
+          elif [ "$$CREATE_CODE" = "400" ] && echo "$$CREATE_BODY" | grep -q "already exists"; then
+            echo "ℹ Stream already exists: $$STREAM_TITLE"
+          else
+            echo "✗ Failed to create $$STREAM_TITLE (HTTP $$CREATE_CODE)"
+            echo "  Response: $$CREATE_BODY"
+          fi
+        done
+        
+        echo '✓ Stream import completed!'
+        
+        echo ''
+        echo '✓ Setup completed!'
+        echo 'Access Graylog at: http://graylog:9000'
+        echo 'Check: Streams → You should see "All Quantus Nodes" and "Quantus Errors"'
