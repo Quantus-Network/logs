@@ -2,8 +2,10 @@
 set -eu
 
 PATCH_FILE=/opt/graylog-init/index-set-default-overrides.json
+# Bump when changing merge logic (verify in logs after rebuild that the server picked up the image).
+INIT_SCRIPT_REV=3
 
-echo "graylog-init running as: $(id)"
+echo "graylog-init rev=${INIT_SCRIPT_REV} running as: $(id)"
 echo 'Waiting for Graylog API to be fully ready...'
 
 COUNTER=0
@@ -60,10 +62,17 @@ if [ -z "$DEFAULT_ID" ] || [ "$DEFAULT_ID" = "null" ]; then
   exit 1
 fi
 
-FULL=$(curl -s -u "${GRAYLOG_USER}:${GRAYLOG_PASSWORD}" "${GRAYLOG_API}/system/indices/index_sets/${DEFAULT_ID}")
-# Build rotation/retention objects from patch fields only — never assign $p.rotation_strategy as a
-# blob (some jq/API paths left stale keys like index_lifetime_min inside the nested object).
-MERGED=$(echo "$FULL" | jq -c --slurpfile patch "$PATCH_FILE" '
+FULL_TMP=$(mktemp)
+trap 'rm -f "$FULL_TMP"' EXIT
+curl -s -u "${GRAYLOG_USER}:${GRAYLOG_PASSWORD}" "${GRAYLOG_API}/system/indices/index_sets/${DEFAULT_ID}" -o "$FULL_TMP"
+if ! [ -s "$FULL_TMP" ]; then
+  echo '✗ Empty response from GET /system/indices/index_sets/'"${DEFAULT_ID}"
+  exit 1
+fi
+
+# Build rotation/retention from patch only; read FULL from file (avoid shell mangling of large JSON).
+# Strip index_lifetime_* defensively — Graylog must not see size-optimizing fields on time-based config.
+MERGED=$(jq -c --slurpfile patch "$PATCH_FILE" '
   ($patch[0]) as $p
   | del(.rotation_strategy, .retention_strategy)
   | .rotation_strategy = (
@@ -83,7 +92,15 @@ MERGED=$(echo "$FULL" | jq -c --slurpfile patch "$PATCH_FILE" '
   | .retention_strategy_class = $p.retention_strategy_class
   | .use_legacy_rotation = $p.use_legacy_rotation
   | .data_tiering = $p.data_tiering
-')
+  | .rotation_strategy |= del(.index_lifetime_min, .index_lifetime_max)
+' "$FULL_TMP")
+
+if echo "$MERGED" | jq -e '.rotation_strategy | has("index_lifetime_min")' >/dev/null 2>&1; then
+  echo '✗ Internal error: index_lifetime_min still present in payload; rotation_strategy=' >&2
+  echo "$MERGED" | jq -c '.rotation_strategy' >&2
+  exit 1
+fi
+
 RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "${GRAYLOG_API}/system/indices/index_sets/${DEFAULT_ID}" \
   -H "Content-Type: application/json" \
   -H "X-Requested-By: cli" \
