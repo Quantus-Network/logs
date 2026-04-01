@@ -10,6 +10,12 @@ volumes:
   graylog_data:
     driver: local
 
+# Not a credential — used so the file is mounted readably in-container (rootless Docker often
+# cannot read bind-mounted files that are mode 600 on the host; secrets land in /run/secrets as 0444).
+secrets:
+  graylog_index_set_overrides:
+    file: ./graylog-index-set-default-overrides.json
+
 services:
   # MongoDB - Graylog metadata and configuration
   mongodb:
@@ -170,9 +176,10 @@ services:
     depends_on:
       graylog:
         condition: service_healthy
+    secrets:
+      - graylog_index_set_overrides
     volumes:
       - ./graylog-inputs.json:/inputs.json:ro
-      - ./graylog-index-set-default-overrides.json:/index-set-default-overrides.json:ro
     environment:
       - GRAYLOG_API=http://graylog:9000/api
       - GRAYLOG_USER=${GRAYLOG_ROOT_USERNAME}
@@ -182,6 +189,7 @@ services:
       - -c
       - |
         apk add --no-cache curl jq
+        echo "graylog-init running as: $$(id)"
         echo 'Waiting for Graylog API to be fully ready...'
         
         # Wait for API to respond (with timeout)
@@ -235,7 +243,7 @@ services:
           exit 1
         else
           FULL=$$(curl -s -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" "$$GRAYLOG_API/system/indices/index_sets/$$DEFAULT_ID")
-          MERGED=$$(echo "$$FULL" | jq -c --slurpfile patch /index-set-default-overrides.json '. * $$patch[0]')
+          MERGED=$$(echo "$$FULL" | jq -c --slurpfile patch /run/secrets/graylog_index_set_overrides '. * $$patch[0]')
           RESPONSE=$$(curl -s -w "\n%{http_code}" -X PUT "$$GRAYLOG_API/system/indices/index_sets/$$DEFAULT_ID" \
             -H "Content-Type: application/json" \
             -H "X-Requested-By: cli" \
