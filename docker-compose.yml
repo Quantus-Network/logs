@@ -160,7 +160,7 @@ services:
       - GRAYLOG_TRANSPORT_EMAIL_USE_SSL=${GRAYLOG_EMAIL_USE_SSL}
       - GRAYLOG_TRANSPORT_EMAIL_FROM_EMAIL=${GRAYLOG_EMAIL_FROM}
 
-  # Graylog Init - Auto-import inputs on startup
+  # Graylog Init - API bootstrap (inputs + default index set rotation/retention from IaC)
   graylog-init:
     image: alpine:latest
     container_name: graylog_init
@@ -172,6 +172,7 @@ services:
         condition: service_healthy
     volumes:
       - ./graylog-inputs.json:/inputs.json:ro
+      - ./graylog-index-set-default-overrides.json:/index-set-default-overrides.json:ro
     environment:
       - GRAYLOG_API=http://graylog:9000/api
       - GRAYLOG_USER=${GRAYLOG_ROOT_USERNAME}
@@ -225,3 +226,28 @@ services:
         done
         
         echo '✓ Input import completed!'
+        
+        echo 'Applying default index set overrides (rotation + retention)...'
+        LIST=$$(curl -s -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" "$$GRAYLOG_API/system/indices/index_sets")
+        DEFAULT_ID=$$(echo "$$LIST" | jq -r '.index_sets[]? | select(.default == true) | .id' | head -n1)
+        if [ -z "$$DEFAULT_ID" ] || [ "$$DEFAULT_ID" = "null" ]; then
+          echo '✗ No default index set found (expected exactly one with default=true)'
+          exit 1
+        else
+          FULL=$$(curl -s -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" "$$GRAYLOG_API/system/indices/index_sets/$$DEFAULT_ID")
+          MERGED=$$(echo "$$FULL" | jq -c --slurpfile patch /index-set-default-overrides.json '. * $$patch[0]')
+          RESPONSE=$$(curl -s -w "\n%{http_code}" -X PUT "$$GRAYLOG_API/system/indices/index_sets/$$DEFAULT_ID" \
+            -H "Content-Type: application/json" \
+            -H "X-Requested-By: cli" \
+            -u "$$GRAYLOG_USER:$$GRAYLOG_PASSWORD" \
+            -d "$$MERGED")
+          HTTP_CODE=$$(echo "$$RESPONSE" | tail -n1)
+          BODY=$$(echo "$$RESPONSE" | head -n-1)
+          if [ "$$HTTP_CODE" = "200" ]; then
+            echo '✓ Default index set updated (rotation + retention from graylog-index-set-default-overrides.json)'
+          else
+            echo "✗ Index set update failed (HTTP $$HTTP_CODE)"
+            echo "Response: $$BODY"
+            exit 1
+          fi
+        fi
