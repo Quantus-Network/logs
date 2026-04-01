@@ -162,11 +162,13 @@ services:
 
   # Graylog Init — inputs z volume; index-set JSON wbudowany w obraz (build), bez bind-mounta z hosta
   # (chmod na hoście nie pomaga przy SELinux — EACCES na /run/secrets i zwykłych volume).
+  # Po zmianie graylog-init.sh / JSON / Dockerfile: docker compose build --no-cache graylog-init && docker compose run --rm graylog-init
+  # W logu musi być "rev=4" — jeśli nie ma, obraz nie został przebudowany (stary :latest z cache).
   graylog-init:
     build:
       context: .
       dockerfile: Dockerfile.graylog-init
-    image: quantus-graylog-init:latest
+    image: quantus-graylog-init:iac
     container_name: graylog_init
     restart: "no"
     networks:

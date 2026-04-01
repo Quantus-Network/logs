@@ -3,7 +3,7 @@ set -eu
 
 PATCH_FILE=/opt/graylog-init/index-set-default-overrides.json
 # Bump when changing merge logic (verify in logs after rebuild that the server picked up the image).
-INIT_SCRIPT_REV=3
+INIT_SCRIPT_REV=4
 
 echo "graylog-init rev=${INIT_SCRIPT_REV} running as: $(id)"
 echo 'Waiting for Graylog API to be fully ready...'
