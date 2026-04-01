@@ -82,7 +82,7 @@ services:
 
   # Graylog Server
   graylog:
-    image: graylog/graylog:7.0
+    image: graylog/graylog:7.0.1
     container_name: graylog_server
     restart: always
     networks:
