@@ -10,6 +10,6 @@
   "retention_strategy_class": "org.graylog2.indexer.retention.strategies.DeletionRetentionStrategy",
   "retention_strategy": {
     "type": "org.graylog2.indexer.retention.strategies.DeletionRetentionStrategyConfig",
-    "max_number_of_indices": 30
+    "max_number_of_indices": 90
   }
 }
