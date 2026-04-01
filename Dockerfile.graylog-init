@@ -1,0 +1,9 @@
+# Init image: COPY index-set JSON into the image so runtime does not bind-mount that file from the
+# host (avoids SELinux / host permission issues on /run/secrets and plain volumes).
+FROM alpine:3.22
+RUN apk add --no-cache curl jq
+COPY graylog-index-set-default-overrides.json /opt/graylog-init/index-set-default-overrides.json
+COPY graylog-init.sh /opt/graylog-init/graylog-init.sh
+RUN chmod +x /opt/graylog-init/graylog-init.sh \
+    && grep -q 'INIT_SCRIPT_REV=4' /opt/graylog-init/graylog-init.sh
+ENTRYPOINT ["/bin/sh", "/opt/graylog-init/graylog-init.sh"]
