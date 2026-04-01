@@ -61,13 +61,25 @@ if [ -z "$DEFAULT_ID" ] || [ "$DEFAULT_ID" = "null" ]; then
 fi
 
 FULL=$(curl -s -u "${GRAYLOG_USER}:${GRAYLOG_PASSWORD}" "${GRAYLOG_API}/system/indices/index_sets/${DEFAULT_ID}")
-# Do not use FULL * patch: jq merges nested objects, so old rotation_strategy keys (e.g.
-# index_lifetime_min from size-optimizing) would remain and break TimeBasedRotationStrategyConfig.
+# Build rotation/retention objects from patch fields only — never assign $p.rotation_strategy as a
+# blob (some jq/API paths left stale keys like index_lifetime_min inside the nested object).
 MERGED=$(echo "$FULL" | jq -c --slurpfile patch "$PATCH_FILE" '
-  $patch[0] as $p
-  | .rotation_strategy = $p.rotation_strategy
+  ($patch[0]) as $p
+  | del(.rotation_strategy, .retention_strategy)
+  | .rotation_strategy = (
+      {
+        type: $p.rotation_strategy.type,
+        rotation_period: $p.rotation_strategy.rotation_period,
+        rotate_empty_index_set: $p.rotation_strategy.rotate_empty_index_set
+      }
+      + (if ($p.rotation_strategy | has("max_rotation_period")) and ($p.rotation_strategy.max_rotation_period != null)
+         then {max_rotation_period: $p.rotation_strategy.max_rotation_period} else {} end)
+    )
+  | .retention_strategy = {
+      type: $p.retention_strategy.type,
+      max_number_of_indices: $p.retention_strategy.max_number_of_indices
+    }
   | .rotation_strategy_class = $p.rotation_strategy_class
-  | .retention_strategy = $p.retention_strategy
   | .retention_strategy_class = $p.retention_strategy_class
   | .use_legacy_rotation = $p.use_legacy_rotation
   | .data_tiering = $p.data_tiering
