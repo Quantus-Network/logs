@@ -61,7 +61,17 @@ if [ -z "$DEFAULT_ID" ] || [ "$DEFAULT_ID" = "null" ]; then
 fi
 
 FULL=$(curl -s -u "${GRAYLOG_USER}:${GRAYLOG_PASSWORD}" "${GRAYLOG_API}/system/indices/index_sets/${DEFAULT_ID}")
-MERGED=$(echo "$FULL" | jq -c --slurpfile patch "$PATCH_FILE" '. * $patch[0]')
+# Do not use FULL * patch: jq merges nested objects, so old rotation_strategy keys (e.g.
+# index_lifetime_min from size-optimizing) would remain and break TimeBasedRotationStrategyConfig.
+MERGED=$(echo "$FULL" | jq -c --slurpfile patch "$PATCH_FILE" '
+  $patch[0] as $p
+  | .rotation_strategy = $p.rotation_strategy
+  | .rotation_strategy_class = $p.rotation_strategy_class
+  | .retention_strategy = $p.retention_strategy
+  | .retention_strategy_class = $p.retention_strategy_class
+  | .use_legacy_rotation = $p.use_legacy_rotation
+  | .data_tiering = $p.data_tiering
+')
 RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "${GRAYLOG_API}/system/indices/index_sets/${DEFAULT_ID}" \
   -H "Content-Type: application/json" \
   -H "X-Requested-By: cli" \
