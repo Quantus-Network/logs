@@ -20,7 +20,7 @@ Three-component stack running in isolated Docker network:
 - **OpenSearch** - indexes and stores logs
 - **Graylog** - log management server with web UI
 
-**Security:** MongoDB and OpenSearch are accessible **only within Docker network**. Only Graylog ports are exposed externally.
+**Security:** MongoDB and OpenSearch are accessible **only within Docker network**. GELF UDP is bound to localhost + Tailscale IP only (set `GRAYLOG_GELF_BIND_TAILSCALE` in `.env`).
 
 ## 📚 Documentation
 
@@ -60,7 +60,7 @@ Inputs (GELF, Syslog) are configured automatically. See [GRAYLOG_SETUP.md](GRAYL
 |------|----------|---------|
 | 9000 | HTTP | Graylog Web UI & API |
 | 1514 | TCP/UDP | Syslog |
-| 12201 | TCP/UDP | GELF (Graylog Extended Log Format) |
+| 12201 | UDP | GELF — bound to `127.0.0.1` + `GRAYLOG_GELF_BIND_TAILSCALE` only |
 
 ## 📄 License
 

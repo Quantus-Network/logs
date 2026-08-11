@@ -36,9 +36,15 @@ OPENSEARCH_PASSWORD=your-opensearch-password
 
 # Set Graylog URL
 GRAYLOG_HTTP_EXTERNAL_URI=http://your-server.com:9000/
+
+# GELF UDP publish bind (required) — this host's Tailscale IPv4
+# tailscale ip -4
+GRAYLOG_GELF_BIND_TAILSCALE=100.x.y.z
 ```
 
 **Important:** `GRAYLOG_ROOT_PASSWORD` and `GRAYLOG_ROOT_PASSWORD_SHA2` must match!
+
+**Important:** Set `GRAYLOG_GELF_BIND_TAILSCALE` before `docker compose up`. GELF UDP is published only on `127.0.0.1` and that Tailscale IP (never all interfaces).
 
 ### Step 4: Start
 
@@ -190,15 +196,18 @@ Fleet hosts (e.g. Subsquid on DigitalOcean) send GELF UDP to this host over
 Tailscale. On the Graylog server:
 
 1. Join the same Tailscale tailnet as the fleets
-2. Allow **UDP/12201** from Tailscale (`100.64.0.0/10` or zone/interface `tailscale0`)
-3. Confirm compose publishes `${GRAYLOG_GELF_UDP_PORT}:12201/udp` (default in this repo)
-
-Optional harden — bind only the Tailscale IP in `docker-compose.yml`:
+2. Set `GRAYLOG_GELF_BIND_TAILSCALE` in `.env` (`tailscale ip -4`)
+3. Allow **UDP/12201** from Tailscale (`100.64.0.0/10` or zone/interface `tailscale0`)
+4. Confirm compose publishes GELF on localhost + Tailscale only:
 
 ```yaml
 ports:
-  - "100.x.y.z:12201:12201/udp"
+  - "127.0.0.1:${GRAYLOG_GELF_UDP_PORT}:12201/udp"
+  - "${GRAYLOG_GELF_BIND_TAILSCALE}:${GRAYLOG_GELF_UDP_PORT}:12201/udp"
 ```
+
+5. Check: `ss -ulnp | grep 12201` must not show `0.0.0.0:12201`
+6. Public-IP GELF probe must not appear in Graylog
 
 Client setup: [CLIENT_SETUP.md](CLIENT_SETUP.md) (remote fleet section).
 
@@ -207,9 +216,10 @@ Client setup: [CLIENT_SETUP.md](CLIENT_SETUP.md) (remote fleet section).
 Edit `.env`:
 ```bash
 GRAYLOG_HTTP_PORT=8080
-GRAYLOG_GELF_TCP_PORT=12345
+GRAYLOG_GELF_UDP_PORT=12201
+GRAYLOG_GELF_BIND_TAILSCALE=100.x.y.z   # tailscale ip -4
 ```
-Then: `docker compose restart`
+Then: `docker compose up -d` (recreate so port binds refresh)
 
 ---
 
