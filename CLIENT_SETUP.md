@@ -101,7 +101,7 @@ services:
       options:
         gelf-address: "udp://<graylog-tailscale-ip-or-magicdns>:12201"
         tag: "subsquid-processor-blue"
-        labels: "project,service,color,host"
+        labels: "project,service,color"
         gelf-compression-type: "gzip"
         mode: "non-blocking"
         max-buffer-size: "4m"
@@ -109,8 +109,9 @@ services:
       project: "subsquid"
       service: "processor"
       color: "blue"
-      host: "subsquid-proc-1"
 ```
+
+Filter by fleet host with Graylog `source:` (Docker GELF `host` = OS hostname, which matches inventory names). Do not ship a Docker label named `host` — Graylog maps GELF `host` → `source` and drops an additional `_host` field.
 
 No `logs_graylog` external network.
 
@@ -156,16 +157,16 @@ tag:quantus-* AND message:/grandpa|babe/i
 tag:quantus-* AND message:/peer|connection/i
 
 # By region
-_region:europe
+region:europe
 
 # By server
-_server:server-01
+server:server-01
 
-# Remote fleets (IaC labels)
+# Remote fleets (IaC labels + OS hostname → source)
 project:subsquid
 service:processor
 service:hasura
-_host:subsquid-proc-1
+source:subsquid-proc-1
 ```
 
 ---
