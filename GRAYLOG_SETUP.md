@@ -184,6 +184,24 @@ echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
 3. ✅ Firewall not blocking?
 4. ✅ Check: `docker compose logs graylog`
 
+### Remote fleets (Tailscale GELF)
+
+Fleet hosts (e.g. Subsquid on DigitalOcean) send GELF UDP to this host over
+Tailscale. On the Graylog server:
+
+1. Join the same Tailscale tailnet as the fleets
+2. Allow **UDP/12201** from Tailscale (`100.64.0.0/10` or zone/interface `tailscale0`)
+3. Confirm compose publishes `${GRAYLOG_GELF_UDP_PORT}:12201/udp` (default in this repo)
+
+Optional harden — bind only the Tailscale IP in `docker-compose.yml`:
+
+```yaml
+ports:
+  - "100.x.y.z:12201:12201/udp"
+```
+
+Client setup: [CLIENT_SETUP.md](CLIENT_SETUP.md) (remote fleet section).
+
 ### Change Ports
 
 Edit `.env`:

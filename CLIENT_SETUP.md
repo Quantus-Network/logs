@@ -1,10 +1,10 @@
 # Quantus Node Logging Setup
 
-Configure Quantus Network validator nodes to send logs to Graylog.
+Configure Quantus Network services to send logs to Graylog.
 
 ---
 
-## Configuration
+## Same-host setup (Graylog on this machine)
 
 Add logging to your existing `docker-compose.yml`:
 
@@ -75,7 +75,57 @@ networks:
 
 ---
 
-## Start
+## Remote fleet setup (DO / Tailscale)
+
+Use this when containers run on a different host than Graylog (e.g. Subsquid on DigitalOcean, Graylog on Hostinger). Ship GELF over **Tailscale** — do not join the `logs_graylog` Docker network.
+
+### Graylog host checklist
+
+1. Tailscale up on the Graylog host (same tailnet as fleet hosts)
+2. GELF UDP published (`GRAYLOG_GELF_UDP_PORT`, default `12201`) — already in this stack’s compose
+3. Firewall: allow **UDP/12201** from Tailscale (`100.64.0.0/10` or interface `tailscale0`)
+4. Optional harden: bind publish to the Tailscale IP only, e.g. `"100.x.y.z:12201:12201/udp"`
+
+### Client pattern
+
+Point `gelf-address` at the Graylog Tailscale IP or MagicDNS name. Keep `mode: non-blocking` so a Graylog outage does not stall apps.
+
+```yaml
+services:
+  example:
+    # ... image, ports, volumes ...
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://<graylog-tailscale-ip-or-magicdns>:12201"
+        tag: "subsquid-processor-blue"
+        labels: "project,service,color,host"
+        gelf-compression-type: "gzip"
+        mode: "non-blocking"
+        max-buffer-size: "4m"
+    labels:
+      project: "subsquid"
+      service: "processor"
+      color: "blue"
+      host: "subsquid-proc-1"
+```
+
+No `logs_graylog` external network.
+
+### Preflight probe (from a fleet host)
+
+```bash
+echo '{"version":"1.1","host":"probe","short_message":"gelf-ok","level":1}' \
+  | nc -u -w1 <graylog-tailscale-ip> 12201
+```
+
+Confirm `gelf-ok` appears in the Graylog UI before enabling fleet-wide shipping.
+
+Fleet wiring for Subsquid is in the IaC Ansible project (`graylog_gelf_address` in the project vault; `graylog_logging_enabled` per project).
+
+---
+
+## Start (same-host)
 
 ```bash
 docker compose up -d
@@ -108,6 +158,12 @@ _region:europe
 
 # By server
 _server:server-01
+
+# Remote fleets (IaC labels)
+project:subsquid
+service:processor
+service:hasura
+_host:subsquid-proc-1
 ```
 
 ---
@@ -120,11 +176,13 @@ _server:server-01
 # Check Docker logging config
 docker inspect quantus-node | grep -A 15 LogConfig
 
-# Check network
+# Same-host: shared Docker network
 docker network inspect logs_graylog | grep quantus-node
 
-# Test GELF
+# Same-host GELF probe
 echo '{"version":"1.1","host":"test","short_message":"Test","level":1}' | nc -u localhost 12201
+
+# Remote: Tailscale + firewall on Graylog host; probe from fleet host (see above)
 ```
 
 ### Container won't start?
