@@ -93,8 +93,10 @@ services:
     ports:
       # Web interface and REST API
       - "${GRAYLOG_HTTP_PORT}:9000"
-      # GELF UDP (for Quantus nodes)
-      - "${GRAYLOG_GELF_UDP_PORT}:12201/udp"
+      # GELF UDP — bind localhost + Tailscale only (never 0.0.0.0 / public eth0)
+      # Fail closed if Tailscale bind is missing/empty (avoids all-interface publish)
+      - "127.0.0.1:${GRAYLOG_GELF_UDP_PORT}:12201/udp"
+      - "${GRAYLOG_GELF_BIND_TAILSCALE:?Set this host's Tailscale IPv4}:${GRAYLOG_GELF_UDP_PORT}:12201/udp"
       # Prometheus metrics
       - "9833:9833"
     volumes:
