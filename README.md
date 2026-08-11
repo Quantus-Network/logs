@@ -20,7 +20,7 @@ Three-component stack running in isolated Docker network:
 - **OpenSearch** - indexes and stores logs
 - **Graylog** - log management server with web UI
 
-**Security:** MongoDB and OpenSearch are accessible **only within Docker network**. GELF UDP is bound to localhost + Tailscale IP only (set `GRAYLOG_GELF_BIND_TAILSCALE` in `.env`).
+**Security:** MongoDB and OpenSearch are accessible **only within Docker network**. GELF UDP is bound to localhost + Tailscale IP only (set `GRAYLOG_GELF_BIND_TAILSCALE` in `.env`; required — Compose fails closed if unset).
 
 ## 📚 Documentation
 

@@ -82,7 +82,7 @@ Use this when containers run on a different host than Graylog (e.g. Subsquid on 
 ### Graylog host checklist
 
 1. Tailscale up on the Graylog host (same tailnet as fleet hosts)
-2. Set `GRAYLOG_GELF_BIND_TAILSCALE` in `.env` to this host’s Tailscale IPv4 (`tailscale ip -4`)
+2. Set `GRAYLOG_GELF_BIND_TAILSCALE` in `.env` to this host’s Tailscale IPv4 (`tailscale ip -4`). Existing `.env` files created before this variable existed must add it; Compose fails closed if it is missing or empty.
 3. Compose publishes GELF UDP on **localhost + Tailscale only** (not `0.0.0.0` / public `eth0`)
 4. Firewall: allow **UDP/12201** from Tailscale (`100.64.0.0/10` or interface `tailscale0`)
 5. Verify: `ss -ulnp | grep 12201` shows `127.0.0.1` and `100.x…`, not `0.0.0.0`
