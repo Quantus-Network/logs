@@ -1,15 +1,14 @@
 {
   "use_legacy_rotation": true,
   "data_tiering": null,
-  "rotation_strategy_class": "org.graylog2.indexer.rotation.strategies.TimeBasedRotationStrategy",
+  "rotation_strategy_class": "org.graylog2.indexer.rotation.strategies.SizeBasedRotationStrategy",
   "rotation_strategy": {
-    "type": "org.graylog2.indexer.rotation.strategies.TimeBasedRotationStrategyConfig",
-    "rotation_period": "P1D",
-    "rotate_empty_index_set": false
+    "type": "org.graylog2.indexer.rotation.strategies.SizeBasedRotationStrategyConfig",
+    "max_size": 5368709120
   },
   "retention_strategy_class": "org.graylog2.indexer.retention.strategies.DeletionRetentionStrategy",
   "retention_strategy": {
     "type": "org.graylog2.indexer.retention.strategies.DeletionRetentionStrategyConfig",
-    "max_number_of_indices": 30
+    "max_number_of_indices": 10
   }
 }

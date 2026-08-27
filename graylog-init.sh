@@ -2,8 +2,9 @@
 set -eu
 
 PATCH_FILE=/opt/graylog-init/index-set-default-overrides.json
+MERGE_JQ=/opt/graylog-init/index-set-merge.jq
 # Bump when changing merge logic (verify in logs after rebuild that the server picked up the image).
-INIT_SCRIPT_REV=4
+INIT_SCRIPT_REV=5
 
 echo "graylog-init rev=${INIT_SCRIPT_REV} running as: $(id)"
 echo 'Waiting for Graylog API to be fully ready...'
@@ -54,6 +55,14 @@ if ! test -r "$PATCH_FILE"; then
   echo "✗ Cannot read patch file at $PATCH_FILE"
   exit 1
 fi
+if ! test -r "$MERGE_JQ"; then
+  echo "✗ Cannot read merge filter at $MERGE_JQ"
+  exit 1
+fi
+if ! jq -e '.rotation_strategy.max_size != null and .rotation_strategy.max_size > 0' "$PATCH_FILE" >/dev/null; then
+  echo "✗ Patch is missing rotation_strategy.max_size (size-based rotation required)"
+  exit 1
+fi
 
 LIST=$(curl -s -u "${GRAYLOG_USER}:${GRAYLOG_PASSWORD}" "${GRAYLOG_API}/system/indices/index_sets")
 DEFAULT_ID=$(echo "$LIST" | jq -r '.index_sets[]? | select(.default == true) | .id' | head -n1)
@@ -71,32 +80,15 @@ if ! [ -s "$FULL_TMP" ]; then
 fi
 
 # Build rotation/retention from patch only; read FULL from file (avoid shell mangling of large JSON).
-# Strip index_lifetime_* defensively — Graylog must not see size-optimizing fields on time-based config.
-MERGED=$(jq -c --slurpfile patch "$PATCH_FILE" '
-  ($patch[0]) as $p
-  | del(.rotation_strategy, .retention_strategy)
-  | .rotation_strategy = (
-      {
-        type: $p.rotation_strategy.type,
-        rotation_period: $p.rotation_strategy.rotation_period,
-        rotate_empty_index_set: $p.rotation_strategy.rotate_empty_index_set
-      }
-      + (if ($p.rotation_strategy | has("max_rotation_period")) and ($p.rotation_strategy.max_rotation_period != null)
-         then {max_rotation_period: $p.rotation_strategy.max_rotation_period} else {} end)
-    )
-  | .retention_strategy = {
-      type: $p.retention_strategy.type,
-      max_number_of_indices: $p.retention_strategy.max_number_of_indices
-    }
-  | .rotation_strategy_class = $p.rotation_strategy_class
-  | .retention_strategy_class = $p.retention_strategy_class
-  | .use_legacy_rotation = $p.use_legacy_rotation
-  | .data_tiering = $p.data_tiering
-  | .rotation_strategy |= del(.index_lifetime_min, .index_lifetime_max)
-' "$FULL_TMP")
+# Strip time-based / size-optimizing fields — SizeBasedRotationStrategyConfig only accepts type + max_size.
+MERGED=$(jq -c --slurpfile patch "$PATCH_FILE" -f "$MERGE_JQ" "$FULL_TMP")
 
-if echo "$MERGED" | jq -e '.rotation_strategy | has("index_lifetime_min")' >/dev/null 2>&1; then
-  echo '✗ Internal error: index_lifetime_min still present in payload; rotation_strategy=' >&2
+if ! echo "$MERGED" | jq -e '
+  .rotation_strategy.max_size != null
+  and (.rotation_strategy | has("index_lifetime_min") | not)
+  and (.rotation_strategy | has("rotation_period") | not)
+' >/dev/null; then
+  echo '✗ Internal error: merged rotation_strategy is not size-based; rotation_strategy=' >&2
   echo "$MERGED" | jq -c '.rotation_strategy' >&2
   exit 1
 fi
