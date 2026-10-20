@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       specific_version:
-        description: "Optional: Specify a full version (e.g., v1.2.3 or v0.2.1-beta.1) to build. If empty, uses the latest release tag. MUST start with 'v'. The image :latest tag is applied only when the selected version is the newest stable (non-prerelease) tag."
+        description: "Optional: Specify a full version (e.g., v1.2.3 or v0.2.1-beta.1) to build. If empty, uses the highest SemVer tag (a final release outranks its prerelease). MUST start with 'v'. The image :latest tag is applied only when the selected version is the newest stable (non-prerelease) tag."
         required: false
         default: ""
 
@@ -32,14 +32,13 @@ jobs:
             TARGET_VERSION="$SPECIFIC_VERSION"
             echo "Using specified version: $TARGET_VERSION"
           else
-            echo "No specific version provided, determining latest release tag..."
-            TARGET_VERSION=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
-            if [[ -z "$TARGET_VERSION" ]]; then
+            echo "No specific version provided, determining the highest SemVer tag..."
+            if ! TARGET_VERSION=$(bash .github/scripts/latest_semver_tag.sh); then
               echo "::error::No version tags starting with 'v' (e.g., vX.Y.Z) found in the repository."
               echo "is_valid_version=false" >> $GITHUB_OUTPUT
               exit 1
             fi
-            echo "Latest release version found: $TARGET_VERSION"
+            echo "Highest SemVer tag found: $TARGET_VERSION"
           fi
 
           if [[ ! "$TARGET_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
