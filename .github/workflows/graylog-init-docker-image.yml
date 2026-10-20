@@ -14,7 +14,6 @@ jobs:
     outputs:
       version_with_v: ${{ steps.version_info.outputs.version_with_v }}
       is_valid_version: ${{ steps.version_info.outputs.is_valid_version }}
-      promote_latest: ${{ steps.version_info.outputs.promote_latest }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,15 +48,8 @@ jobs:
             exit 1
           fi
 
-          PROMOTE_LATEST=$(bash .github/scripts/should_promote_latest.sh "$TARGET_VERSION")
-          if [[ "$PROMOTE_LATEST" != "true" && "$PROMOTE_LATEST" != "false" ]]; then
-            echo "::error::should_promote_latest.sh must print true or false, got '$PROMOTE_LATEST'"
-            exit 1
-          fi
-
           echo "version_with_v=$TARGET_VERSION" >> $GITHUB_OUTPUT
           echo "is_valid_version=true" >> $GITHUB_OUTPUT
-          echo "promote_latest=$PROMOTE_LATEST" >> $GITHUB_OUTPUT
 
   build_and_publish_image:
     needs: determine_version
@@ -72,7 +64,6 @@ jobs:
     env:
       GHCR_IMAGE_PATH: ghcr.io/quantus-network/graylog-init
       TARGET_VERSION_WITH_V: ${{ needs.determine_version.outputs.version_with_v }}
-      PROMOTE_LATEST: ${{ needs.determine_version.outputs.promote_latest }}
 
     steps:
       - name: Checkout workflow
@@ -83,10 +74,6 @@ jobs:
           set -ex
           if [[ ! "$TARGET_VERSION_WITH_V" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
             echo "::error::Version '$TARGET_VERSION_WITH_V' is not a valid format. It must start with 'v' (e.g., v1.2.3 or v0.2.1-beta.1)."
-            exit 1
-          fi
-          if [[ "$PROMOTE_LATEST" != "true" && "$PROMOTE_LATEST" != "false" ]]; then
-            echo "::error::promote_latest must be 'true' or 'false', got '$PROMOTE_LATEST'"
             exit 1
           fi
 
@@ -133,16 +120,6 @@ jobs:
               ;;
           esac
 
-      - name: Compute image tags
-        id: image_tags
-        run: |
-          set -ex
-          TAGS="${GHCR_IMAGE_PATH}:${TARGET_VERSION_WITH_V}"
-          if [[ "$PROMOTE_LATEST" == "true" ]]; then
-            TAGS="${TAGS},${GHCR_IMAGE_PATH}:latest"
-          fi
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-
       - name: Checkout target version source code
         uses: actions/checkout@v4
         with:
@@ -157,11 +134,58 @@ jobs:
           platforms: linux/amd64
           cache-from: type=gha,scope=graylog-init
           cache-to: type=gha,scope=graylog-init,mode=max
-          tags: ${{ steps.image_tags.outputs.tags }}
+          tags: ${{ env.GHCR_IMAGE_PATH }}:${{ env.TARGET_VERSION_WITH_V }}
 
       - name: Print completion message
         run: |
           echo "Successfully built and pushed ${GHCR_IMAGE_PATH}:${TARGET_VERSION_WITH_V}"
-          if [[ "$PROMOTE_LATEST" == "true" ]]; then
-            echo "Also tagged ${GHCR_IMAGE_PATH}:latest"
+
+  promote_latest:
+    needs: [determine_version, build_and_publish_image]
+    if: needs.determine_version.outputs.is_valid_version == 'true' && needs.build_and_publish_image.result == 'success'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ghcr-graylog-init-latest
+      cancel-in-progress: false
+      queue: max
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GHCR_IMAGE_PATH: ghcr.io/quantus-network/graylog-init
+      TARGET_VERSION_WITH_V: ${{ needs.determine_version.outputs.version_with_v }}
+    steps:
+      - name: Checkout workflow
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote :latest when this tag is still the newest stable
+        run: |
+          set -ex
+          git fetch --force --tags origin
+          PROMOTE_LATEST=$(bash .github/scripts/should_promote_latest.sh "$TARGET_VERSION_WITH_V")
+          if [[ "$PROMOTE_LATEST" != "true" && "$PROMOTE_LATEST" != "false" ]]; then
+            echo "::error::should_promote_latest.sh must print true or false, got '$PROMOTE_LATEST'"
+            exit 1
           fi
+          if [[ "$PROMOTE_LATEST" != "true" ]]; then
+            echo "${TARGET_VERSION_WITH_V} is not the newest stable tag. Leaving :latest unchanged."
+            exit 0
+          fi
+          docker buildx imagetools create \
+            --prefer-index=false \
+            -t "${GHCR_IMAGE_PATH}:latest" \
+            "${GHCR_IMAGE_PATH}:${TARGET_VERSION_WITH_V}"
+          echo "Tagged ${GHCR_IMAGE_PATH}:latest from ${TARGET_VERSION_WITH_V}"
