@@ -54,6 +54,15 @@ Access: **http://localhost:9000** (login: `admin`)
 
 Inputs (GELF, Syslog) are configured automatically. See [GRAYLOG_SETUP.md](GRAYLOG_SETUP.md) for details.
 
+## Publish the init image
+
+`graylog-init` is the only image this repo builds. Publish it to `ghcr.io/quantus-network/graylog-init`:
+
+1. Tag the commit `vX.Y.Z` and push the tag.
+2. Run **Graylog Init - Docker Image** from the Actions tab. Leave the version empty to use the latest tag, or pass `vX.Y.Z`.
+
+The workflow does not rebuild a tag that already exists. `:latest` is applied only when the selected tag is the newest stable `vX.Y.Z`.
+
 ## 📊 Ports
 
 | Port | Protocol | Service |
