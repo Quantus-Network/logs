@@ -162,10 +162,11 @@ services:
       - GRAYLOG_TRANSPORT_EMAIL_USE_SSL=${GRAYLOG_EMAIL_USE_SSL}
       - GRAYLOG_TRANSPORT_EMAIL_FROM_EMAIL=${GRAYLOG_EMAIL_FROM}
 
-  # Graylog Init — inputs z volume; index-set JSON wbudowany w obraz (build), bez bind-mounta z hosta
-  # (chmod na hoście nie pomaga przy SELinux — EACCES na /run/secrets i zwykłych volume).
-  # Po zmianie graylog-init.sh / JSON / Dockerfile: docker compose build --no-cache graylog-init && docker compose run --rm graylog-init
-  # W logu musi być "rev=5" — jeśli nie ma, obraz nie został przebudowany (stary :latest z cache).
+  # One-shot. Rotation limits come from the environment. Change them in .env and
+  # re-run: docker compose run --rm graylog-init
+  # Re-run updates the default index set. An input with the same title and type
+  # is left in place and is not created again.
+  # Script or Dockerfile changes still need a rebuild. The log line must show rev=7.
   graylog-init:
     build:
       context: .
@@ -184,4 +185,6 @@ services:
       - GRAYLOG_API=http://graylog:9000/api
       - GRAYLOG_USER=${GRAYLOG_ROOT_USERNAME}
       - GRAYLOG_PASSWORD=${GRAYLOG_ROOT_PASSWORD}
+      - "GRAYLOG_INDEX_MAX_SIZE_BYTES=${GRAYLOG_INDEX_MAX_SIZE_BYTES:?GRAYLOG_INDEX_MAX_SIZE_BYTES is required}"
+      - "GRAYLOG_INDEX_MAX_INDICES=${GRAYLOG_INDEX_MAX_INDICES:?GRAYLOG_INDEX_MAX_INDICES is required}"
 

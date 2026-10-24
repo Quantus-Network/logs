@@ -40,6 +40,12 @@ GRAYLOG_HTTP_EXTERNAL_URI=http://your-server.com:9000/
 # GELF UDP publish bind (required) — this host's Tailscale IPv4
 # tailscale ip -4
 GRAYLOG_GELF_BIND_TAILSCALE=100.x.y.z
+
+# Default index rotation: 10 GiB per index, keep 10 indices (~100 GiB).
+# Change these and re-run graylog-init. No image rebuild.
+# Re-run leaves an existing input with the same title and type in place.
+GRAYLOG_INDEX_MAX_SIZE_BYTES=10737418240
+GRAYLOG_INDEX_MAX_INDICES=10
 ```
 
 **Important:** `GRAYLOG_ROOT_PASSWORD` and `GRAYLOG_ROOT_PASSWORD_SHA2` must match!
