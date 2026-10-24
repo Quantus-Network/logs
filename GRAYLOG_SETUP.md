@@ -43,6 +43,7 @@ GRAYLOG_GELF_BIND_TAILSCALE=100.x.y.z
 
 # Default index rotation: 10 GiB per index, keep 10 indices (~100 GiB).
 # Change these and re-run graylog-init. No image rebuild.
+# Re-run leaves an existing input with the same title and type in place.
 GRAYLOG_INDEX_MAX_SIZE_BYTES=10737418240
 GRAYLOG_INDEX_MAX_INDICES=10
 ```

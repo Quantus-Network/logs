@@ -6,6 +6,6 @@ COPY graylog-index-set-merge.jq /opt/graylog-init/index-set-merge.jq
 COPY graylog-index-set-patch.sh /opt/graylog-init/index-set-patch.sh
 COPY graylog-init.sh /opt/graylog-init/graylog-init.sh
 RUN chmod +x /opt/graylog-init/graylog-init.sh /opt/graylog-init/index-set-patch.sh \
-    && grep -q 'INIT_SCRIPT_REV=6' /opt/graylog-init/graylog-init.sh \
+    && grep -q 'INIT_SCRIPT_REV=7' /opt/graylog-init/graylog-init.sh \
     && grep -q 'GRAYLOG_INDEX_MAX_SIZE_BYTES' /opt/graylog-init/index-set-patch.sh
 ENTRYPOINT ["/bin/sh", "/opt/graylog-init/graylog-init.sh"]

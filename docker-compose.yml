@@ -164,7 +164,9 @@ services:
 
   # One-shot. Rotation limits come from the environment. Change them in .env and
   # re-run: docker compose run --rm graylog-init
-  # Script or Dockerfile changes still need a rebuild. The log line must show rev=6.
+  # Re-run updates the default index set. An input with the same title and type
+  # is left in place and is not created again.
+  # Script or Dockerfile changes still need a rebuild. The log line must show rev=7.
   graylog-init:
     build:
       context: .
